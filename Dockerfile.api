@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install deps first for better layer caching
+COPY rosetta_prompt/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy app
+COPY rosetta_prompt/ /app/rosetta_prompt/
+
+WORKDIR /app/rosetta_prompt
+ENV PYTHONPATH=/app/rosetta_prompt
+
+EXPOSE 8000
+
+# Coolify can set PORT; default is 8000
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
+

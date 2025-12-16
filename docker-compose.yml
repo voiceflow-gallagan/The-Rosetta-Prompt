@@ -1,0 +1,62 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      # Bind port for uvicorn inside the container (Coolify can override)
+      - PORT=8000
+      # App env (set these in Coolify)
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - FIRECRAWL_API_URL=${FIRECRAWL_API_URL}
+    ports:
+      # External API port is configurable via API_PORT; container always listens on 8000 by default
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Persist provider docs + logs so provider updates survive redeploys
+      - rosetta_docs:/app/rosetta_prompt/docs
+      - rosetta_logs:/app/rosetta_prompt/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/providers').read()\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    environment:
+      # Used to generate /env.js at container start; defaults to proxy path.
+      - UI_API_BASE=${UI_API_BASE:-/api}
+    ports:
+      # External UI port configurable via UI_PORT; container listens on 80
+      - "${UI_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional: run the docs updater on-demand (requires ANTHROPIC_API_KEY + FIRECRAWL_API_KEY)
+  # Example:
+  #   docker compose run --rm updater python agent.py anthropic openai
+  updater:
+    build:
+      context: .
+      dockerfile: Dockerfile.updater
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY}
+      - FIRECRAWL_API_URL=${FIRECRAWL_API_URL}
+    volumes:
+      - rosetta_docs:/app/rosetta_prompt/docs
+    profiles: ["updater"]
+
+volumes:
+  rosetta_docs:
+  rosetta_logs:
+
+

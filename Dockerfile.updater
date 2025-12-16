@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Updater dependencies
+COPY updater/requirements.txt /app/updater/requirements.txt
+RUN pip install --no-cache-dir -r /app/updater/requirements.txt
+
+# Copy updater + docs folder structure it expects (docs content is usually volume-mounted)
+COPY updater/ /app/updater/
+COPY rosetta_prompt/ /app/rosetta_prompt/
+
+WORKDIR /app/updater
+
+CMD ["python", "agent.py"]
+
+
