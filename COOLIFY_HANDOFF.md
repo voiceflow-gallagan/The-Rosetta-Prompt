@@ -96,6 +96,20 @@ Optional:
   - Default: `/api` (recommended with the single-domain setup)
   - If using a separate API domain, set to full URL (example below)
 
+### Optional: password-protect the UI (Basic Auth)
+
+You can lock the UI (and the proxied `/api/*` endpoints) behind **HTTP Basic Auth** at the nginx layer inside the `ui` container.
+
+Set these environment variables on the **`ui` service** in Coolify:
+
+- `UI_BASIC_AUTH_USER`
+- `UI_BASIC_AUTH_PASSWORD`
+
+Notes:
+
+- If both variables are set (non-empty), nginx will require a username/password for all routes.
+- If either is unset/empty, Basic Auth is disabled (useful for local/dev).
+
 ### Optional: separate API domain (not recommended unless needed)
 
 If you want the API on a different domain:

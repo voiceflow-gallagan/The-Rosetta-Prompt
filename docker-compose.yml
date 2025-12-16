@@ -32,6 +32,9 @@ services:
     environment:
       # Used to generate /env.js at container start; defaults to proxy path.
       - UI_API_BASE=${UI_API_BASE:-/api}
+      # Optional: protect UI (and proxied /api) with HTTP Basic Auth
+      - UI_BASIC_AUTH_USER=${UI_BASIC_AUTH_USER:-}
+      - UI_BASIC_AUTH_PASSWORD=${UI_BASIC_AUTH_PASSWORD:-}
     ports:
       # External UI port configurable via UI_PORT; container listens on 80
       - "${UI_PORT:-3000}:80"
