@@ -1,6 +1,51 @@
 import { create } from 'zustand'
 
-const API_BASE = (typeof window !== 'undefined' && window.__ROSETTA_PROMPT__?.API_BASE) || process.env.REACT_APP_API_BASE || 'http://localhost:8000'
+function resolveApiBase() {
+  const runtime = (typeof window !== 'undefined' && window.__ROSETTA_PROMPT__?.API_BASE) || ''
+  const buildtime = process.env.REACT_APP_API_BASE || ''
+
+  // Prefer runtime (env.js), then build-time env, then same-origin proxy path.
+  let base = (runtime || buildtime || '/api').trim()
+
+  // Common deployment footgun: static env.js fallback is localhost, but the app
+  // is running on a non-localhost domain. In that case, prefer same-origin proxy.
+  if (typeof window !== 'undefined') {
+    const host = window.location?.hostname
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1'
+    if (!isLocalHost && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(base)) {
+      base = '/api'
+    }
+  }
+
+  // Normalize trailing slash (so `${base}/path` doesn't double-slash or miss slash)
+  return base.endsWith('/') ? base.slice(0, -1) : base
+}
+
+const API_BASE = resolveApiBase()
+
+async function fetchJson(url, options) {
+  const response = await fetch(url, options)
+  const contentType = response.headers.get('content-type') || ''
+
+  // If the backend/proxy returns an HTML error page (common), surface it clearly.
+  if (!contentType.includes('application/json')) {
+    const text = await response.text().catch(() => '')
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim()
+    throw new Error(
+      `Unexpected response from API (${response.status} ${response.statusText}) at ${url}. ` +
+        `Expected JSON but got "${contentType || 'unknown'}". ` +
+        (snippet ? `Body starts with: ${JSON.stringify(snippet)}` : '')
+    )
+  }
+
+  if (!response.ok) {
+    // Even when JSON, FastAPI returns structured errors. Include status for clarity.
+    const err = await response.json().catch(() => ({}))
+    throw new Error(`API request failed (${response.status} ${response.statusText}) at ${url}: ${JSON.stringify(err)}`)
+  }
+
+  return response.json()
+}
 
 export const useStore = create((set, get) => ({
   // UI State
@@ -76,8 +121,7 @@ export const useStore = create((set, get) => ({
     }
 
     try {
-      const response = await fetch(`${API_BASE}/providers`)
-      const data = await response.json()
+      const data = await fetchJson(`${API_BASE}/providers`)
       const providers = sortByPreference(data.providers || [])
       set({
         availableProviders: providers,
@@ -149,7 +193,7 @@ export const useStore = create((set, get) => ({
     set({ currentStep: 'Finalizing', progress: 85 })
 
     try {
-      const response = await fetch(`${API_BASE}/optimize`, {
+      const data = await fetchJson(`${API_BASE}/optimize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,8 +202,6 @@ export const useStore = create((set, get) => ({
           options: { preserve_structure: true, verbose_changelog: false }
         })
       })
-
-      const data = await response.json()
 
       set({ progress: 95 })
       addLog({ type: 'success', message: 'Optimization complete!' })
